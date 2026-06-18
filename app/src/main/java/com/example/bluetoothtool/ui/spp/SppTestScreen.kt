@@ -1,13 +1,5 @@
-package com.example.blurtoothtool
+package com.example.bluetoothtool.ui.spp
 
-import android.content.Intent
-import android.provider.Settings
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,77 +16,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.blurtoothtool.bluetooth.BluetoothDeviceItem
-import com.example.blurtoothtool.bluetooth.BluetoothPermissions
-import com.example.blurtoothtool.bluetooth.SppTestController
-import com.example.blurtoothtool.bluetooth.SppUiState
-import com.example.blurtoothtool.bluetooth.TestMode
-import com.example.blurtoothtool.bluetooth.ThroughputStats
-import com.example.blurtoothtool.ui.theme.BLurtoothToolTheme
+import com.example.bluetoothtool.model.BluetoothDeviceItem
+import com.example.bluetoothtool.model.TestMode
+import com.example.bluetoothtool.model.ThroughputStats
+import com.example.bluetoothtool.ui.theme.BluetoothToolTheme
 import java.util.Locale
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            BLurtoothToolTheme {
-                val context = LocalContext.current
-                val controller = remember { SppTestController(context) }
-                val state by controller.state.collectAsState()
-                val permissionLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestMultiplePermissions(),
-                ) {
-                    controller.refreshPermissionsAndDevices()
-                }
-
-                DisposableEffect(controller) {
-                    onDispose { controller.stop() }
-                }
-
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    SppTestScreen(
-                        state = state,
-                        onRequestPermission = {
-                            permissionLauncher.launch(BluetoothPermissions.runtimePermissions)
-                        },
-                        onOpenBluetoothSettings = {
-                            context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                        },
-                        onRefreshDevices = controller::refreshPermissionsAndDevices,
-                        onModeChange = controller::setMode,
-                        onDeviceSelected = controller::selectDevice,
-                        onStart = controller::start,
-                        onStop = controller::stop,
-                        modifier = Modifier.padding(innerPadding),
-                    )
-                }
-            }
-        }
-    }
-}
-
 @Composable
-private fun SppTestScreen(
+fun SppTestScreen(
     state: SppUiState,
     onRequestPermission: () -> Unit,
     onOpenBluetoothSettings: () -> Unit,
@@ -204,7 +146,7 @@ private fun ModeCard(
             enabled = enabled,
             onClick = { onModeChange(TestMode.ClientSend) },
         )
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         ModeRow(
             title = "Server Receive",
             description = "Listen for incoming SPP connection and count received bytes.",
@@ -401,7 +343,7 @@ private fun StatusLine(label: String, value: String) {
 @Preview(showBackground = true)
 @Composable
 private fun SppTestScreenPreview() {
-    BLurtoothToolTheme {
+    BluetoothToolTheme {
         SppTestScreen(
             state = SppUiState(
                 bluetoothAvailable = true,

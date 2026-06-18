@@ -1,22 +1,8 @@
-package com.example.blurtoothtool.bluetooth
+package com.example.bluetoothtool.ui.spp
 
-data class BluetoothDeviceItem(
-    val name: String,
-    val address: String,
-)
-
-enum class TestMode {
-    ClientSend,
-    ServerReceive,
-}
-
-data class ThroughputStats(
-    val bytes: Long = 0,
-    val elapsedMillis: Long = 0,
-) {
-    val mbps: Double
-        get() = if (elapsedMillis <= 0L) 0.0 else (bytes * 8.0 / 1_000_000.0) / (elapsedMillis / 1_000.0)
-}
+import com.example.bluetoothtool.model.BluetoothDeviceItem
+import com.example.bluetoothtool.model.TestMode
+import com.example.bluetoothtool.model.ThroughputStats
 
 data class SppUiState(
     val bluetoothAvailable: Boolean = false,

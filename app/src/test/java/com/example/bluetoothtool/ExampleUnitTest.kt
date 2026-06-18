@@ -1,4 +1,4 @@
-package com.example.blurtoothtool
+package com.example.bluetoothtool
 
 import org.junit.Test
 

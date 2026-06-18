@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.blurtoothtool"
+    namespace = "com.example.bluetoothtool"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.blurtoothtool"
+        applicationId = "com.example.bluetoothtool"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

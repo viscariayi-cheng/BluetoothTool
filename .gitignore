@@ -5,6 +5,9 @@
 /.idea/libraries
 /.idea/modules.xml
 /.idea/workspace.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceManager.xml
+/.idea/studiobot.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
@@ -13,3 +16,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+hs_err_pid*.log
+replay_pid*.log

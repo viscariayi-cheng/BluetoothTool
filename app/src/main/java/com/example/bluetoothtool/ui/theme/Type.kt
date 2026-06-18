@@ -1,4 +1,4 @@
-package com.example.blurtoothtool.ui.theme
+package com.example.bluetoothtool.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

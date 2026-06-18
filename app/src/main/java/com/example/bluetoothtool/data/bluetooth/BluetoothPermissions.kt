@@ -1,4 +1,4 @@
-package com.example.blurtoothtool.bluetooth
+package com.example.bluetoothtool.data.bluetooth
 
 import android.Manifest
 import android.os.Build
