@@ -1,13 +1,13 @@
 package com.example.bluetoothtool.data.repository
 
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import com.example.bluetoothtool.data.bluetooth.BluetoothDiscoverabilityDataSource
+import com.example.bluetoothtool.data.bluetooth.BleAdvertiserDataSource
+import com.example.bluetoothtool.data.bluetooth.BleGattDataSource
+import com.example.bluetoothtool.data.bluetooth.BleScannerDataSource
 import com.example.bluetoothtool.data.bluetooth.BluetoothEnvironment
 import com.example.bluetoothtool.data.bluetooth.BluetoothPermissionChecker
-import com.example.bluetoothtool.data.bluetooth.SppSocketDataSource
 import com.example.bluetoothtool.model.BluetoothDeviceItem
 import com.example.bluetoothtool.model.TestMode
 import kotlinx.coroutines.Dispatchers
@@ -15,15 +15,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
-class AndroidSppTestRepository(
+class AndroidBleTestRepository(
     context: Context,
-) : SppTestRepository {
+) : BleTestRepository {
     private val appContext = context.applicationContext
     private val bluetoothManager = appContext.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? = bluetoothManager?.adapter
     private val permissionChecker = BluetoothPermissionChecker(appContext)
-    private val socketDataSource = SppSocketDataSource { adapter }
-    private val discoverabilityDataSource = BluetoothDiscoverabilityDataSource { adapter }
+    private val gattDataSource = BleGattDataSource({ adapter }, appContext)
+    private val scannerDataSource = BleScannerDataSource { adapter }
+    private val advertiserDataSource = BleAdvertiserDataSource(
+        { adapter },
+        { BleGattDataSource.BLE_THROUGHPUT_SERVICE_UUID },
+    )
 
     override fun getEnvironment(): BluetoothEnvironment {
         return BluetoothEnvironment(
@@ -33,23 +37,6 @@ class AndroidSppTestRepository(
         )
     }
 
-    @SuppressLint("MissingPermission")
-    override fun getPairedDevices(): List<BluetoothDeviceItem> {
-        if (!permissionChecker.hasBluetoothPermission() || adapter == null) {
-            return emptyList()
-        }
-
-        return adapter.bondedDevices
-            .orEmpty()
-            .map { device ->
-                BluetoothDeviceItem(
-                    name = device.name ?: "Unknown device",
-                    address = device.address,
-                )
-            }
-            .sortedWith(compareBy({ it.name.lowercase() }, { it.address }))
-    }
-
     override suspend fun runTest(
         mode: TestMode,
         device: BluetoothDeviceItem?,
@@ -57,29 +44,32 @@ class AndroidSppTestRepository(
         onLog: (String) -> Unit,
         onStatus: (String) -> Unit,
         onConnected: (String) -> Unit,
+        onMtuChanged: (Int) -> Unit,
         onStats: (bytes: Long, elapsedMillis: Long) -> Unit,
     ) {
         withContext(Dispatchers.IO) {
             try {
                 when (mode) {
-                    TestMode.SppClientSend -> runClient(
-                        device = requireNotNull(device) { "Client test requires a paired device." },
+                    TestMode.BleClientWrite -> runClient(
+                        device = requireNotNull(device) { "BLE client test requires a target device." },
                         activeJob = activeJob,
                         onLog = onLog,
                         onStatus = onStatus,
                         onConnected = onConnected,
+                        onMtuChanged = onMtuChanged,
                         onStats = onStats,
                     )
 
-                    TestMode.SppServerReceive -> runServer(
+                    TestMode.BleServerNotify -> runServer(
                         activeJob = activeJob,
                         onLog = onLog,
                         onStatus = onStatus,
                         onConnected = onConnected,
+                        onMtuChanged = onMtuChanged,
                         onStats = onStats,
                     )
 
-                    else -> onLog("Test mode $mode is not supported by SPP repository.")
+                    else -> onLog("Test mode $mode is not supported by BLE repository.")
                 }
             } finally {
                 close()
@@ -87,23 +77,29 @@ class AndroidSppTestRepository(
         }
     }
 
-    private fun runClient(
+    private suspend fun runClient(
         device: BluetoothDeviceItem,
         activeJob: () -> Job?,
         onLog: (String) -> Unit,
         onStatus: (String) -> Unit,
         onConnected: (String) -> Unit,
+        onMtuChanged: (Int) -> Unit,
         onStats: (bytes: Long, elapsedMillis: Long) -> Unit,
     ) {
         try {
-            onLog("Connecting to ${device.name} (${device.address})...")
+            onLog("Connecting GATT to ${device.name} (${device.address})...")
             onStatus("Connecting")
-            val socket = socketDataSource.openClientSocket(device)
-            onLog("Connected. Sending payload...")
-            onConnected("Client sending")
-            socketDataSource.sendPayloadLoop(socket, activeJob, onStats)
+            val result = gattDataSource.connectAndDiscover(device)
+            if (!result.success) {
+                onLog("Connection failed: ${result.message}")
+                return
+            }
+            onLog("Connected. MTU=${result.mtu}")
+            onMtuChanged(result.mtu)
+            onConnected("Client writing")
+            gattDataSource.writePayloadLoop(activeJob, onStats)
         } catch (error: IOException) {
-            onLog("Client error: ${error.message ?: error.javaClass.simpleName}")
+            onLog("BLE client error: ${error.message ?: error.javaClass.simpleName}")
         }
     }
 
@@ -112,25 +108,41 @@ class AndroidSppTestRepository(
         onLog: (String) -> Unit,
         onStatus: (String) -> Unit,
         onConnected: (String) -> Unit,
+        onMtuChanged: (Int) -> Unit,
         onStats: (bytes: Long, elapsedMillis: Long) -> Unit,
     ) {
         try {
-            onLog("Listening for SPP client...")
+            onLog("Setting up GATT server...")
+            onStatus("Setting up")
+            val setupResult = gattDataSource.setupGattServer(
+                onConnectionAccepted = {
+                    onLog("BLE client connected.")
+                },
+            )
+            if (!setupResult.success) {
+                onLog("GATT server setup failed: ${setupResult.message}")
+                return
+            }
+
+            onLog("Starting BLE advertising...")
+            advertiserDataSource.startAdvertising(
+                onSuccess = { msg -> onLog(msg) },
+                onError = { msg -> onLog(msg) },
+            )
+
+            onLog("Waiting for GATT client connection...")
             onStatus("Listening")
-            val listener = socketDataSource.openServerSocket()
-            val scanModeResult = discoverabilityDataSource.makeConnectableDiscoverable()
-            onLog(scanModeResult.message)
-            val socket = socketDataSource.acceptServerSocket(listener)
-            onLog("Client connected. Receiving payload...")
-            onConnected("Server receiving")
-            socketDataSource.receivePayloadLoop(socket, activeJob, onStats)
+            onConnected("Server notifying")
+
+            gattDataSource.notifyPayloadLoop(activeJob, onStats)
         } catch (error: IOException) {
-            onLog("Server error: ${error.message ?: error.javaClass.simpleName}")
+            onLog("BLE server error: ${error.message ?: error.javaClass.simpleName}")
         }
     }
 
     override fun close() {
-        socketDataSource.close()
-        discoverabilityDataSource.restorePreviousScanMode()
+        gattDataSource.closeClient()
+        gattDataSource.closeServer()
+        advertiserDataSource.stopAdvertising()
     }
 }

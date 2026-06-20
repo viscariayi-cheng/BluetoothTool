@@ -14,8 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -32,8 +30,11 @@ import androidx.compose.ui.unit.dp
 import com.example.bluetoothtool.model.BluetoothDeviceItem
 import com.example.bluetoothtool.model.TestMode
 import com.example.bluetoothtool.model.ThroughputStats
+import com.example.bluetoothtool.ui.common.AppCard
+import com.example.bluetoothtool.ui.common.LogsCard
+import com.example.bluetoothtool.ui.common.StatsCard
+import com.example.bluetoothtool.ui.common.StatusLine
 import com.example.bluetoothtool.ui.theme.BluetoothToolTheme
-import java.util.Locale
 
 @Composable
 fun SppTestScreen(
@@ -67,7 +68,7 @@ fun SppTestScreen(
                 enabled = !state.isRunning,
                 onModeChange = onModeChange,
             )
-            if (state.mode == TestMode.ClientSend) {
+            if (state.mode == TestMode.SppClientSend) {
                 DeviceCard(
                     devices = state.pairedDevices,
                     selectedDevice = state.selectedDevice,
@@ -142,17 +143,17 @@ private fun ModeCard(
         ModeRow(
             title = "Client Send",
             description = "Connect to another device and continuously write payload.",
-            selected = selectedMode == TestMode.ClientSend,
+            selected = selectedMode == TestMode.SppClientSend,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.ClientSend) },
+            onClick = { onModeChange(TestMode.SppClientSend) },
         )
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         ModeRow(
             title = "Server Receive",
             description = "Listen for incoming SPP connection and count received bytes.",
-            selected = selectedMode == TestMode.ServerReceive,
+            selected = selectedMode == TestMode.SppServerReceive,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.ServerReceive) },
+            onClick = { onModeChange(TestMode.SppServerReceive) },
         )
     }
 }
@@ -273,72 +274,6 @@ private fun ControlCard(
     }
 }
 
-@Composable
-private fun StatsCard(stats: ThroughputStats) {
-    AppCard(title = "Throughput") {
-        Text(
-            text = String.format(Locale.US, "%.3f Mbps", stats.mbps),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        StatusLine("Bytes", stats.bytes.toString())
-        StatusLine("Elapsed", String.format(Locale.US, "%.1f s", stats.elapsedMillis / 1_000.0))
-    }
-}
-
-@Composable
-private fun LogsCard(logs: List<String>) {
-    AppCard(title = "Logs") {
-        if (logs.isEmpty()) {
-            Text(
-                text = "No logs yet.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                logs.takeLast(16).forEach { line ->
-                    Text(text = line, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AppCard(
-    title: String,
-    content: @Composable () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            content()
-        }
-    }
-}
-
-@Composable
-private fun StatusLine(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(text = value, fontWeight = FontWeight.SemiBold)
-    }
-}
 
 @Preview(showBackground = true)
 @Composable

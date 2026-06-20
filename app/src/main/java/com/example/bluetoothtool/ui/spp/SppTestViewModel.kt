@@ -52,7 +52,7 @@ class SppTestViewModel(
 
     fun setMode(mode: TestMode) {
         if (_state.value.isRunning) return
-        _state.update { it.copy(mode = mode, selectedDevice = if (mode == TestMode.ServerReceive) null else it.selectedDevice) }
+        _state.update { it.copy(mode = mode, selectedDevice = if (mode == TestMode.SppServerReceive) null else it.selectedDevice) }
     }
 
     fun start() {
@@ -67,7 +67,7 @@ class SppTestViewModel(
             appendLog("Bluetooth is unavailable or disabled.")
             return
         }
-        if (current.mode == TestMode.ClientSend && current.selectedDevice == null) {
+        if (current.mode == TestMode.SppClientSend && current.selectedDevice == null) {
             appendLog("Select a paired device before client test.")
             return
         }

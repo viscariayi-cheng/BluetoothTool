@@ -1,6 +1,8 @@
 package com.example.bluetoothtool.model
 
 enum class TestMode {
-    ClientSend,
-    ServerReceive,
+    SppClientSend,
+    SppServerReceive,
+    BleClientWrite,
+    BleServerNotify,
 }

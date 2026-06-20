@@ -10,7 +10,7 @@ data class SppUiState(
     val hasBluetoothPermission: Boolean = false,
     val pairedDevices: List<BluetoothDeviceItem> = emptyList(),
     val selectedDevice: BluetoothDeviceItem? = null,
-    val mode: TestMode = TestMode.ClientSend,
+    val mode: TestMode = TestMode.SppClientSend,
     val isRunning: Boolean = false,
     val isConnected: Boolean = false,
     val status: String = "Idle",
