@@ -11,6 +11,8 @@ class BleAdvertiserDataSource(
     private val adapterProvider: () -> BluetoothAdapter?,
     private val serviceUuidProvider: () -> java.util.UUID,
 ) {
+    private var activeAdvertiseCallback: AdvertiseCallback? = null
+
     @SuppressLint("MissingPermission")
     fun startAdvertising(
         onSuccess: (String) -> Unit,
@@ -40,7 +42,8 @@ class BleAdvertiserDataSource(
             .addServiceUuid(android.os.ParcelUuid(serviceUuid))
             .build()
 
-        advertiser.startAdvertising(settings, data, object : AdvertiseCallback() {
+        stopAdvertising()
+        val callback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
                 onSuccess("BLE advertising started (${settingsInEffect.mode}).")
             }
@@ -56,17 +59,19 @@ class BleAdvertiserDataSource(
                 }
                 onError(message)
             }
-        })
+        }
+        activeAdvertiseCallback = callback
+        advertiser.startAdvertising(settings, data, callback)
     }
 
     @SuppressLint("MissingPermission")
     fun stopAdvertising() {
         val adapter = adapterProvider() ?: return
+        val callback = activeAdvertiseCallback ?: return
+        activeAdvertiseCallback = null
         try {
-            adapter.bluetoothLeAdvertiser?.stopAdvertising(NoOpAdvertiseCallback)
+            adapter.bluetoothLeAdvertiser?.stopAdvertising(callback)
         } catch (_: Exception) {
         }
     }
-
-    private object NoOpAdvertiseCallback : AdvertiseCallback()
 }

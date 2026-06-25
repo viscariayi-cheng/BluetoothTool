@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -51,7 +51,7 @@ private fun MainScreen() {
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
-            TabRow(
+            PrimaryTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface,
             ) {
@@ -77,7 +77,8 @@ private fun MainScreen() {
 
 @Composable
 private fun SppTab() {
-    val factory = remember { SppTestViewModelFactory(androidx.compose.ui.platform.LocalContext.current) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val factory = remember(context) { SppTestViewModelFactory(context) }
     val viewModel: SppTestViewModel = viewModel(factory = factory)
     val state by viewModel.state.collectAsState()
 
@@ -93,9 +94,7 @@ private fun SppTab() {
             permissionLauncher.launch(BluetoothPermissions.runtimePermissions)
         },
         onOpenBluetoothSettings = {
-            androidx.compose.ui.platform.LocalContext.current.startActivity(
-                Intent(Settings.ACTION_BLUETOOTH_SETTINGS),
-            )
+            context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
         },
         onRefreshDevices = viewModel::refreshPermissionsAndDevices,
         onModeChange = viewModel::setMode,

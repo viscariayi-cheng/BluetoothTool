@@ -19,12 +19,20 @@ class BluetoothPermissionChecker(
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
     }
 
+    fun hasBluetoothAdvertisePermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED
+    }
+
     fun hasLocationPermission(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 
     fun hasAllBlePermissions(): Boolean {
-        return hasBluetoothScanPermission() && hasLocationPermission()
+        return hasBluetoothPermission() &&
+            hasBluetoothScanPermission() &&
+            hasBluetoothAdvertisePermission() &&
+            hasLocationPermission()
     }
 }

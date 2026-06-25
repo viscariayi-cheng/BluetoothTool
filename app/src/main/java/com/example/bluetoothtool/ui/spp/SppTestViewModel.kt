@@ -3,7 +3,7 @@ package com.example.bluetoothtool.ui.spp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bluetoothtool.domain.GetPairedDevicesUseCase
-import com.example.bluetoothtool.domain.RefreshBluetoothEnvironmentUseCase
+import com.example.bluetoothtool.domain.RefreshSppEnvironmentUseCase
 import com.example.bluetoothtool.domain.RunSppTestUseCase
 import com.example.bluetoothtool.domain.StopSppTestUseCase
 import com.example.bluetoothtool.model.BluetoothDeviceItem
@@ -20,7 +20,7 @@ import java.util.Date
 import java.util.Locale
 
 class SppTestViewModel(
-    private val refreshBluetoothEnvironment: RefreshBluetoothEnvironmentUseCase,
+    private val refreshSppEnvironment: RefreshSppEnvironmentUseCase,
     private val getPairedDevices: GetPairedDevicesUseCase,
     private val runSppTest: RunSppTestUseCase,
     private val stopSppTest: StopSppTestUseCase,
@@ -35,7 +35,7 @@ class SppTestViewModel(
     }
 
     fun refreshPermissionsAndDevices() {
-        val environment = refreshBluetoothEnvironment()
+        val environment = refreshSppEnvironment()
         _state.update {
             it.copy(
                 bluetoothAvailable = environment.bluetoothAvailable,

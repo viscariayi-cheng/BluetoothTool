@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.bluetoothtool.data.repository.AndroidSppTestRepository
 import com.example.bluetoothtool.domain.GetPairedDevicesUseCase
-import com.example.bluetoothtool.domain.RefreshBluetoothEnvironmentUseCase
+import com.example.bluetoothtool.domain.RefreshSppEnvironmentUseCase
 import com.example.bluetoothtool.domain.RunSppTestUseCase
 import com.example.bluetoothtool.domain.StopSppTestUseCase
 
@@ -22,7 +22,7 @@ class SppTestViewModelFactory(
 
         val repository = AndroidSppTestRepository(appContext)
         return SppTestViewModel(
-            refreshBluetoothEnvironment = RefreshBluetoothEnvironmentUseCase(repository),
+            refreshSppEnvironment = RefreshSppEnvironmentUseCase(repository),
             getPairedDevices = GetPairedDevicesUseCase(repository),
             runSppTest = RunSppTestUseCase(repository),
             stopSppTest = StopSppTestUseCase(repository),

@@ -99,7 +99,7 @@ class BleTestViewModel(
         _state.update {
             it.copy(
                 mode = mode,
-                selectedDevice = if (mode == TestMode.BleServerNotify) null else it.selectedDevice,
+                selectedDevice = if (mode == TestMode.BleServerReceive) null else it.selectedDevice,
             )
         }
     }
@@ -120,7 +120,7 @@ class BleTestViewModel(
             appendLog("Bluetooth is unavailable or disabled.")
             return
         }
-        if (current.mode == TestMode.BleClientWrite && current.selectedDevice == null) {
+        if (current.mode == TestMode.BleClientSend && current.selectedDevice == null) {
             appendLog("Select a BLE device before starting client test.")
             return
         }
@@ -165,7 +165,7 @@ class BleTestViewModel(
         _state.update {
             it.copy(
                 isConnected = true,
-                isAdvertising = it.mode == TestMode.BleServerNotify,
+                isAdvertising = it.mode == TestMode.BleServerReceive,
                 status = status,
             )
         }

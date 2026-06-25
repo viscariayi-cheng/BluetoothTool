@@ -82,7 +82,7 @@ fun BleTestScreen(
                 enabled = !state.isRunning,
                 onModeChange = onModeChange,
             )
-            if (state.mode == TestMode.BleClientWrite) {
+            if (state.mode == TestMode.BleClientSend) {
                 ScanDeviceCard(
                     devices = state.scannedDevices,
                     selectedDevice = state.selectedDevice,
@@ -126,7 +126,7 @@ private fun HeaderSection() {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Client scans, connects and writes at max speed. Server advertises and notifies. Real-time Mbps from byte counts.",
+            text = "Client scans, connects and sends payloads continuously. Server advertises a GATT service and measures received bytes.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -149,7 +149,7 @@ private fun StatusCard(
         StatusLine("Bluetooth power", if (state.bluetoothEnabled) "Enabled" else "Disabled")
         StatusLine("BT Permission", if (state.hasBluetoothPermission) "Granted" else "Required")
         StatusLine("Location Permission", if (state.hasLocationPermission) "Granted" else "Required (BLE scan)")
-        if (state.mode == TestMode.BleServerNotify && state.isRunning) {
+        if (state.mode == TestMode.BleServerReceive && state.isRunning) {
             StatusLine("Advertising", if (state.isAdvertising) "Active" else "Starting...")
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -178,19 +178,19 @@ private fun ModeCard(
 ) {
     AppCard(title = "Mode") {
         ModeRow(
-            title = "Client Write",
+            title = "Client Send",
             description = "Scan BLE peripherals, connect, and write payload continuously (Write Without Response).",
-            selected = selectedMode == TestMode.BleClientWrite,
+            selected = selectedMode == TestMode.BleClientSend,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.BleClientWrite) },
+            onClick = { onModeChange(TestMode.BleClientSend) },
         )
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         ModeRow(
-            title = "Server Notify",
-            description = "Advertise as BLE peripheral, accept GATT connection, and push payload via notifications.",
-            selected = selectedMode == TestMode.BleServerNotify,
+            title = "Server Receive",
+            description = "Advertise as a BLE peripheral, accept a GATT connection, and measure incoming writes.",
+            selected = selectedMode == TestMode.BleServerReceive,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.BleServerNotify) },
+            onClick = { onModeChange(TestMode.BleServerReceive) },
         )
     }
 }
@@ -338,7 +338,7 @@ private fun ControlCard(
             && state.hasLocationPermission
             && state.bluetoothAvailable
             && state.bluetoothEnabled
-            && (state.mode == TestMode.BleServerNotify || state.selectedDevice != null)
+            && (state.mode == TestMode.BleServerReceive || state.selectedDevice != null)
 
     AppCard(title = "Control") {
         StatusLine("Connection", if (state.isConnected) "Connected" else "Disconnected")
@@ -367,7 +367,7 @@ private fun MtuCard(mtu: Int) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = if (mtu >= 247) "MTU ≥ 247 可显著提升吞吐量" else "建议请求 MTU = 512 以获得最佳性能",
+                text = if (mtu >= 247) "MTU >= 247 can significantly improve throughput." else "Requesting MTU 512 is recommended for best performance.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -395,7 +395,7 @@ private fun BleTestScreenPreviewClientIdle() {
                     BleDeviceItem("Unknown", "CC:00:11:22:33:44", rssi = -78),
                 ),
                 selectedDevice = BleDeviceItem("BLE-Sensor-01", "AA:11:22:33:44:55", rssi = -42),
-                mode = TestMode.BleClientWrite,
+                mode = TestMode.BleClientSend,
                 logs = listOf("12:00:01  Ready"),
             ),
             onRequestPermission = {},
@@ -423,13 +423,13 @@ private fun BleTestScreenPreviewClientRunning() {
                 hasLocationPermission = true,
                 scannedDevices = listOf(BleDeviceItem("BLE-Sensor-01", "AA:11:22:33:44:55", rssi = -42)),
                 selectedDevice = BleDeviceItem("BLE-Sensor-01", "AA:11:22:33:44:55", rssi = -42),
-                mode = TestMode.BleClientWrite,
+                mode = TestMode.BleClientSend,
                 isRunning = true,
                 isConnected = true,
                 mtu = 512,
-                status = "Writing",
+                status = "Sending",
                 stats = ThroughputStats(bytes = 5_242_880, elapsedMillis = 8_000),
-                logs = listOf("12:00:05  Connected", "12:00:05  MTU=512", "12:00:06  Writing..."),
+                logs = listOf("12:00:05  Connected", "12:00:05  MTU=512", "12:00:06  Sending..."),
             ),
             onRequestPermission = {},
             onRequestLocationPermission = {},
@@ -454,12 +454,12 @@ private fun BleTestScreenPreviewServerRunning() {
                 bluetoothEnabled = true,
                 hasBluetoothPermission = true,
                 hasLocationPermission = true,
-                mode = TestMode.BleServerNotify,
+                mode = TestMode.BleServerReceive,
                 isRunning = true,
                 isConnected = true,
                 isAdvertising = true,
                 mtu = 512,
-                status = "Notifying",
+                status = "Receiving",
                 stats = ThroughputStats(bytes = 3_145_728, elapsedMillis = 5_000),
                 logs = listOf("12:00:03  Advertising", "12:00:06  Connected", "12:00:07  Pushing..."),
             ),

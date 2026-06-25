@@ -33,7 +33,7 @@ class AndroidBleTestRepository(
         return BluetoothEnvironment(
             bluetoothAvailable = adapter != null,
             bluetoothEnabled = adapter?.isEnabled == true,
-            hasBluetoothPermission = permissionChecker.hasBluetoothPermission(),
+            hasBluetoothPermission = permissionChecker.hasAllBlePermissions(),
         )
     }
 
@@ -50,7 +50,7 @@ class AndroidBleTestRepository(
         withContext(Dispatchers.IO) {
             try {
                 when (mode) {
-                    TestMode.BleClientWrite -> runClient(
+                    TestMode.BleClientSend -> runClient(
                         device = requireNotNull(device) { "BLE client test requires a target device." },
                         activeJob = activeJob,
                         onLog = onLog,
@@ -60,7 +60,7 @@ class AndroidBleTestRepository(
                         onStats = onStats,
                     )
 
-                    TestMode.BleServerNotify -> runServer(
+                    TestMode.BleServerReceive -> runServer(
                         activeJob = activeJob,
                         onLog = onLog,
                         onStatus = onStatus,
@@ -96,7 +96,7 @@ class AndroidBleTestRepository(
             }
             onLog("Connected. MTU=${result.mtu}")
             onMtuChanged(result.mtu)
-            onConnected("Client writing")
+            onConnected("Client sending")
             gattDataSource.writePayloadLoop(activeJob, onStats)
         } catch (error: IOException) {
             onLog("BLE client error: ${error.message ?: error.javaClass.simpleName}")
@@ -117,7 +117,10 @@ class AndroidBleTestRepository(
             val setupResult = gattDataSource.setupGattServer(
                 onConnectionAccepted = {
                     onLog("BLE client connected.")
+                    onConnected("Server receiving")
+                    onStatus("Receiving")
                 },
+                onMtuChanged = onMtuChanged,
             )
             if (!setupResult.success) {
                 onLog("GATT server setup failed: ${setupResult.message}")
@@ -132,9 +135,8 @@ class AndroidBleTestRepository(
 
             onLog("Waiting for GATT client connection...")
             onStatus("Listening")
-            onConnected("Server notifying")
 
-            gattDataSource.notifyPayloadLoop(activeJob, onStats)
+            gattDataSource.receivePayloadLoop(activeJob, onStats)
         } catch (error: IOException) {
             onLog("BLE server error: ${error.message ?: error.javaClass.simpleName}")
         }

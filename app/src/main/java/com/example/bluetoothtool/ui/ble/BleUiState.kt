@@ -11,7 +11,7 @@ data class BleUiState(
     val hasBleSupport: Boolean = true,
     val scannedDevices: List<BleDeviceItem> = emptyList(),
     val selectedDevice: BleDeviceItem? = null,
-    val mode: TestMode = TestMode.BleClientWrite,
+    val mode: TestMode = TestMode.BleClientSend,
     val isScanning: Boolean = false,
     val isRunning: Boolean = false,
     val isConnected: Boolean = false,
