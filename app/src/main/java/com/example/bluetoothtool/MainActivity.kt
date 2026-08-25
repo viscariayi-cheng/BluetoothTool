@@ -28,6 +28,9 @@ import com.example.bluetoothtool.data.bluetooth.BluetoothPermissions
 import com.example.bluetoothtool.ui.ble.BleTestScreen
 import com.example.bluetoothtool.ui.ble.BleTestViewModel
 import com.example.bluetoothtool.ui.ble.BleTestViewModelFactory
+import com.example.bluetoothtool.ui.settings.SettingsScreen
+import com.example.bluetoothtool.ui.settings.SettingsViewModel
+import com.example.bluetoothtool.ui.settings.SettingsViewModelFactory
 import com.example.bluetoothtool.ui.spp.SppTestScreen
 import com.example.bluetoothtool.ui.spp.SppTestViewModel
 import com.example.bluetoothtool.ui.spp.SppTestViewModelFactory
@@ -65,11 +68,17 @@ private fun MainScreen() {
                     onClick = { selectedTab = 1 },
                     text = { Text("BLE") },
                 )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("Settings") },
+                )
             }
 
             when (selectedTab) {
                 0 -> SppTab()
                 1 -> BleTab()
+                2 -> SettingsTab()
             }
         }
     }
@@ -96,8 +105,18 @@ private fun SppTab() {
         onOpenBluetoothSettings = {
             context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
         },
+        onMakeDiscoverable = {
+            context.startActivity(
+                Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                    .putExtra(
+                        android.bluetooth.BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION,
+                        SPP_DISCOVERABLE_DURATION_SECONDS,
+                    ),
+            )
+        },
         onRefreshDevices = viewModel::refreshPermissionsAndDevices,
-        onModeChange = viewModel::setMode,
+        onRoleChange = viewModel::setRole,
+        onTrafficDirectionChange = viewModel::setTrafficDirection,
         onDeviceSelected = viewModel::selectDevice,
         onStart = viewModel::start,
         onStop = viewModel::stop,
@@ -108,7 +127,7 @@ private fun SppTab() {
 @Composable
 private fun BleTab() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val factory = remember { BleTestViewModelFactory(context) }
+    val factory = remember(context) { BleTestViewModelFactory(context) }
     val viewModel: BleTestViewModel = viewModel(factory = factory)
     val state by viewModel.state.collectAsState()
 
@@ -131,10 +150,33 @@ private fun BleTab() {
         },
         onScanDevices = viewModel::scanDevices,
         onStopScan = viewModel::stopScan,
-        onModeChange = viewModel::setMode,
+        onRoleChange = viewModel::setRole,
+        onTrafficDirectionChange = viewModel::setTrafficDirection,
         onDeviceSelected = viewModel::selectDevice,
         onStart = viewModel::start,
         onStop = viewModel::stop,
+        modifier = Modifier,
+    )
+}
+
+private const val SPP_DISCOVERABLE_DURATION_SECONDS = 300
+
+@Composable
+private fun SettingsTab() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val factory = remember(context) { SettingsViewModelFactory(context) }
+    val viewModel: SettingsViewModel = viewModel(factory = factory)
+    val state by viewModel.state.collectAsState()
+
+    SettingsScreen(
+        state = state,
+        onSppServiceUuidChange = viewModel::updateSppServiceUuid,
+        onBleServiceUuidChange = viewModel::updateBleServiceUuid,
+        onBleTxCharacteristicUuidChange = viewModel::updateBleTxCharacteristicUuid,
+        onBleRxCharacteristicUuidChange = viewModel::updateBleRxCharacteristicUuid,
+        onShowUnnamedBleDevicesChange = viewModel::updateShowUnnamedBleDevices,
+        onSave = viewModel::save,
+        onResetDefaults = viewModel::resetDefaults,
         modifier = Modifier,
     )
 }

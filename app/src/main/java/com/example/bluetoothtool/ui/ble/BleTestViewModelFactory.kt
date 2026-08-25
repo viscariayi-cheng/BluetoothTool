@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.bluetoothtool.data.repository.AndroidBleTestRepository
+import com.example.bluetoothtool.data.settings.AppSettingsRepository
 import com.example.bluetoothtool.domain.RefreshBleEnvironmentUseCase
 import com.example.bluetoothtool.domain.RunBleTestUseCase
 import com.example.bluetoothtool.domain.ScanBleDevicesUseCase
 import com.example.bluetoothtool.domain.StopBleTestUseCase
+import java.util.UUID
 
 class BleTestViewModelFactory(
     context: Context,
@@ -21,6 +23,7 @@ class BleTestViewModelFactory(
         }
 
         val repository = AndroidBleTestRepository(appContext)
+        val settingsRepository = AppSettingsRepository(appContext)
         return BleTestViewModel(
             appContext = appContext,
             refreshBleEnvironment = RefreshBleEnvironmentUseCase(repository),
@@ -32,10 +35,14 @@ class BleTestViewModelFactory(
                         )
                         manager?.adapter
                     },
+                    serviceUuidProvider = {
+                        UUID.fromString(settingsRepository.getSettings().bleServiceUuid)
+                    },
                 ),
             ),
             runBleTest = RunBleTestUseCase(repository),
             stopBleTest = StopBleTestUseCase(repository),
+            settingsRepository = settingsRepository,
         ) as T
     }
 }

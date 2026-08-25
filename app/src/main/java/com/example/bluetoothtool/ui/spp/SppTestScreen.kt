@@ -28,11 +28,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bluetoothtool.model.BluetoothDeviceItem
-import com.example.bluetoothtool.model.TestMode
-import com.example.bluetoothtool.model.ThroughputStats
+import com.example.bluetoothtool.model.SppBidirectionalThroughputStats
+import com.example.bluetoothtool.model.SppThroughputStats
+import com.example.bluetoothtool.model.TestRole
+import com.example.bluetoothtool.model.TrafficDirection
 import com.example.bluetoothtool.ui.common.AppCard
 import com.example.bluetoothtool.ui.common.LogsCard
-import com.example.bluetoothtool.ui.common.StatsCard
 import com.example.bluetoothtool.ui.common.StatusLine
 import com.example.bluetoothtool.ui.theme.BluetoothToolTheme
 
@@ -41,8 +42,10 @@ fun SppTestScreen(
     state: SppUiState,
     onRequestPermission: () -> Unit,
     onOpenBluetoothSettings: () -> Unit,
+    onMakeDiscoverable: () -> Unit,
     onRefreshDevices: () -> Unit,
-    onModeChange: (TestMode) -> Unit,
+    onRoleChange: (TestRole) -> Unit,
+    onTrafficDirectionChange: (TrafficDirection) -> Unit,
     onDeviceSelected: (BluetoothDeviceItem) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
@@ -61,14 +64,20 @@ fun SppTestScreen(
                 state = state,
                 onRequestPermission = onRequestPermission,
                 onOpenBluetoothSettings = onOpenBluetoothSettings,
+                onMakeDiscoverable = onMakeDiscoverable,
                 onRefreshDevices = onRefreshDevices,
             )
-            ModeCard(
-                selectedMode = state.mode,
+            RoleCard(
+                selectedRole = state.config.role,
                 enabled = !state.isRunning,
-                onModeChange = onModeChange,
+                onRoleChange = onRoleChange,
             )
-            if (state.mode == TestMode.SppClientSend) {
+            TrafficCard(
+                selectedTrafficDirection = state.config.trafficDirection,
+                enabled = !state.isRunning,
+                onTrafficDirectionChange = onTrafficDirectionChange,
+            )
+            if (state.needsSelectedDevice) {
                 DeviceCard(
                     devices = state.pairedDevices,
                     selectedDevice = state.selectedDevice,
@@ -81,9 +90,24 @@ fun SppTestScreen(
                 onStart = onStart,
                 onStop = onStop,
             )
-            StatsCard(stats = state.stats)
+            if (state.config.trafficDirection == TrafficDirection.TxRx) {
+                BidirectionalStatsCard(stats = state.bidirectionalStats)
+            } else {
+                SppStatsCard(
+                    title = throughputTitle(state.config.trafficDirection),
+                    stats = state.stats,
+                )
+            }
             LogsCard(logs = state.logs)
         }
+    }
+}
+
+private fun throughputTitle(trafficDirection: TrafficDirection): String {
+    return when (trafficDirection) {
+        TrafficDirection.Tx -> "TX Throughput"
+        TrafficDirection.Rx -> "RX Throughput"
+        TrafficDirection.TxRx -> "Throughput"
     }
 }
 
@@ -96,7 +120,7 @@ private fun HeaderSection() {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Client sends fixed RFCOMM payloads. Server receives and calculates real-time Mbps.",
+            text = "Measure SPP throughput with independent connection role and traffic direction.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -108,6 +132,7 @@ private fun StatusCard(
     state: SppUiState,
     onRequestPermission: () -> Unit,
     onOpenBluetoothSettings: () -> Unit,
+    onMakeDiscoverable: () -> Unit,
     onRefreshDevices: () -> Unit,
 ) {
     AppCard(title = "Environment") {
@@ -126,6 +151,11 @@ private fun StatusCard(
                     Text("Bluetooth Settings")
                 }
             }
+            if (state.bluetoothEnabled && state.hasBluetoothPermission) {
+                OutlinedButton(onClick = onMakeDiscoverable) {
+                    Text("Make Discoverable")
+                }
+            }
             OutlinedButton(onClick = onRefreshDevices) {
                 Text("Refresh")
             }
@@ -134,27 +164,102 @@ private fun StatusCard(
 }
 
 @Composable
-private fun ModeCard(
-    selectedMode: TestMode,
+private fun RoleCard(
+    selectedRole: TestRole,
     enabled: Boolean,
-    onModeChange: (TestMode) -> Unit,
+    onRoleChange: (TestRole) -> Unit,
 ) {
-    AppCard(title = "Mode") {
+    AppCard(title = "Connection") {
         ModeRow(
-            title = "Client Send",
-            description = "Connect to another device and continuously write payload.",
-            selected = selectedMode == TestMode.SppClientSend,
+            title = "Client",
+            description = "Android connects to the selected paired device.",
+            selected = selectedRole == TestRole.Client,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.SppClientSend) },
+            onClick = { onRoleChange(TestRole.Client) },
         )
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         ModeRow(
-            title = "Server Receive",
-            description = "Listen for incoming SPP connection and count received bytes.",
-            selected = selectedMode == TestMode.SppServerReceive,
+            title = "Server",
+            description = "Android waits for an incoming SPP connection.",
+            selected = selectedRole == TestRole.Server,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.SppServerReceive) },
+            onClick = { onRoleChange(TestRole.Server) },
         )
+    }
+}
+
+@Composable
+private fun TrafficCard(
+    selectedTrafficDirection: TrafficDirection,
+    enabled: Boolean,
+    onTrafficDirectionChange: (TrafficDirection) -> Unit,
+) {
+    AppCard(title = "Traffic Direction") {
+        ModeRow(
+            title = "TX",
+            description = "Android sends payload continuously.",
+            selected = selectedTrafficDirection == TrafficDirection.Tx,
+            enabled = enabled,
+            onClick = { onTrafficDirectionChange(TrafficDirection.Tx) },
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        ModeRow(
+            title = "RX",
+            description = "Android receives payload and measures throughput.",
+            selected = selectedTrafficDirection == TrafficDirection.Rx,
+            enabled = enabled,
+            onClick = { onTrafficDirectionChange(TrafficDirection.Rx) },
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        ModeRow(
+            title = "TX + RX",
+            description = "Android sends and receives payload simultaneously.",
+            selected = selectedTrafficDirection == TrafficDirection.TxRx,
+            enabled = enabled,
+            onClick = { onTrafficDirectionChange(TrafficDirection.TxRx) },
+        )
+    }
+}
+
+@Composable
+private fun SppStatsCard(
+    title: String,
+    stats: SppThroughputStats,
+) {
+    AppCard(title = title) {
+        Text(
+            text = "%.3f Mbps".format(stats.currentMbps),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        StatusLine("Current", "%.3f Mbps".format(stats.currentMbps))
+        StatusLine("Average", "%.3f Mbps".format(stats.averageMbps))
+        StatusLine("Total Bytes", stats.totalBytes.toString())
+        StatusLine("Window Bytes", stats.intervalBytes.toString())
+        StatusLine("Elapsed", "%.1f s".format(stats.elapsedMillis / 1_000.0))
+    }
+}
+
+@Composable
+private fun BidirectionalStatsCard(stats: SppBidirectionalThroughputStats) {
+    AppCard(title = "Throughput") {
+        Text(
+            text = "%.3f Mbps".format(stats.currentTotalMbps),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        StatusLine("Current TX", "%.3f Mbps".format(stats.currentTxMbps))
+        StatusLine("Current RX", "%.3f Mbps".format(stats.currentRxMbps))
+        StatusLine("Current Total", "%.3f Mbps".format(stats.currentTotalMbps))
+        StatusLine("Average TX", "%.3f Mbps".format(stats.averageTxMbps))
+        StatusLine("Average RX", "%.3f Mbps".format(stats.averageRxMbps))
+        StatusLine("Average Total", "%.3f Mbps".format(stats.averageTotalMbps))
+        StatusLine("TX Bytes", stats.txBytes.toString())
+        StatusLine("RX Bytes", stats.rxBytes.toString())
+        StatusLine("Total Bytes", stats.totalBytes.toString())
+        StatusLine("Elapsed", "%.1f s".format(stats.elapsedMillis / 1_000.0))
     }
 }
 
@@ -260,7 +365,11 @@ private fun ControlCard(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
                 onClick = onStart,
-                enabled = !state.isRunning && state.hasBluetoothPermission && state.bluetoothAvailable && state.bluetoothEnabled,
+                enabled = !state.isRunning &&
+                    state.hasBluetoothPermission &&
+                    state.bluetoothAvailable &&
+                    state.bluetoothEnabled &&
+                    (!state.needsSelectedDevice || state.selectedDevice != null),
             ) {
                 Text("Start")
             }
@@ -273,7 +382,6 @@ private fun ControlCard(
         }
     }
 }
-
 
 @Preview(showBackground = true)
 @Composable
@@ -289,13 +397,20 @@ private fun SppTestScreenPreview() {
                     BluetoothDeviceItem("Test Phone", "AA:BB:CC:DD:EE:FF"),
                 ),
                 selectedDevice = BluetoothDeviceItem("HC-05", "00:11:22:33:44:55"),
-                stats = ThroughputStats(bytes = 2_048_000, elapsedMillis = 5_000),
+                stats = SppThroughputStats(
+                    totalBytes = 2_048_000,
+                    elapsedMillis = 5_000,
+                    intervalBytes = 410_000,
+                    intervalMillis = 1_000,
+                ),
                 logs = listOf("20:00:00  Ready"),
             ),
             onRequestPermission = {},
             onOpenBluetoothSettings = {},
+            onMakeDiscoverable = {},
             onRefreshDevices = {},
-            onModeChange = {},
+            onRoleChange = {},
+            onTrafficDirectionChange = {},
             onDeviceSelected = {},
             onStart = {},
             onStop = {},

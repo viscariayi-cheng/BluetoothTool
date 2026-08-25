@@ -7,8 +7,14 @@ import com.example.bluetoothtool.domain.RefreshSppEnvironmentUseCase
 import com.example.bluetoothtool.domain.RunSppTestUseCase
 import com.example.bluetoothtool.domain.StopSppTestUseCase
 import com.example.bluetoothtool.model.BluetoothDeviceItem
-import com.example.bluetoothtool.model.TestMode
-import com.example.bluetoothtool.model.ThroughputStats
+import com.example.bluetoothtool.model.SppBidirectionalThroughputSample
+import com.example.bluetoothtool.model.SppBidirectionalThroughputStats
+import com.example.bluetoothtool.model.SppTestConfig
+import com.example.bluetoothtool.model.SppThroughputSample
+import com.example.bluetoothtool.model.SppThroughputStats
+import com.example.bluetoothtool.model.TestRole
+import com.example.bluetoothtool.model.TrafficDirection
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,9 +56,23 @@ class SppTestViewModel(
         _state.update { it.copy(selectedDevice = device) }
     }
 
-    fun setMode(mode: TestMode) {
+    fun setRole(role: TestRole) {
         if (_state.value.isRunning) return
-        _state.update { it.copy(mode = mode, selectedDevice = if (mode == TestMode.SppServerReceive) null else it.selectedDevice) }
+        _state.update {
+            it.copy(
+                config = it.config.copy(role = role),
+                selectedDevice = if (role == TestRole.Server) null else it.selectedDevice,
+            )
+        }
+    }
+
+    fun setTrafficDirection(trafficDirection: TrafficDirection) {
+        if (_state.value.isRunning) return
+        _state.update {
+            it.copy(
+                config = it.config.copy(trafficDirection = trafficDirection),
+            )
+        }
     }
 
     fun start() {
@@ -67,7 +87,7 @@ class SppTestViewModel(
             appendLog("Bluetooth is unavailable or disabled.")
             return
         }
-        if (current.mode == TestMode.SppClientSend && current.selectedDevice == null) {
+        if (current.needsSelectedDevice && current.selectedDevice == null) {
             appendLog("Select a paired device before client test.")
             return
         }
@@ -75,16 +95,23 @@ class SppTestViewModel(
         resetStats()
         _state.update { it.copy(isRunning = true, status = "Starting", isConnected = false) }
         testJob = viewModelScope.launch {
-            runSppTest(
-                mode = current.mode,
-                device = current.selectedDevice,
-                activeJob = { testJob },
-                onLog = ::appendLog,
-                onStatus = ::updateStatus,
-                onConnected = ::onConnected,
-                onStats = ::publishStats,
-            )
-            markFinished()
+            try {
+                runSppTest(
+                    config = current.config,
+                    device = current.selectedDevice,
+                    activeJob = { testJob },
+                    onLog = ::appendLog,
+                    onStatus = ::updateStatus,
+                    onConnected = ::onConnected,
+                    onStats = ::publishStats,
+                    onBidirectionalStats = ::publishBidirectionalStats,
+                )
+            } catch (_: CancellationException) {
+            } catch (error: Exception) {
+                appendLog("SPP test error: ${error.message ?: error.javaClass.simpleName}")
+            } finally {
+                markFinished()
+            }
         }
     }
 
@@ -117,7 +144,13 @@ class SppTestViewModel(
     }
 
     private fun resetStats() {
-        _state.update { it.copy(stats = ThroughputStats(), logs = emptyList()) }
+        _state.update {
+            it.copy(
+                stats = SppThroughputStats(),
+                bidirectionalStats = SppBidirectionalThroughputStats(),
+                logs = emptyList(),
+            )
+        }
     }
 
     private fun onConnected(status: String) {
@@ -128,8 +161,20 @@ class SppTestViewModel(
         _state.update { it.copy(status = status) }
     }
 
-    private fun publishStats(bytes: Long, elapsedMillis: Long) {
-        _state.update { it.copy(stats = ThroughputStats(bytes = bytes, elapsedMillis = elapsedMillis.coerceAtLeast(1L))) }
+    private fun publishStats(sample: SppThroughputSample) {
+        _state.update {
+            it.copy(
+                stats = SppThroughputStats(sample),
+            )
+        }
+    }
+
+    private fun publishBidirectionalStats(sample: SppBidirectionalThroughputSample) {
+        _state.update {
+            it.copy(
+                bidirectionalStats = SppBidirectionalThroughputStats(sample),
+            )
+        }
     }
 
     private fun markFinished() {

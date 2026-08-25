@@ -1,8 +1,10 @@
 package com.example.bluetoothtool.ui.spp
 
 import com.example.bluetoothtool.model.BluetoothDeviceItem
-import com.example.bluetoothtool.model.TestMode
-import com.example.bluetoothtool.model.ThroughputStats
+import com.example.bluetoothtool.model.SppBidirectionalThroughputStats
+import com.example.bluetoothtool.model.SppTestConfig
+import com.example.bluetoothtool.model.SppThroughputStats
+import com.example.bluetoothtool.model.TestRole
 
 data class SppUiState(
     val bluetoothAvailable: Boolean = false,
@@ -10,10 +12,14 @@ data class SppUiState(
     val hasBluetoothPermission: Boolean = false,
     val pairedDevices: List<BluetoothDeviceItem> = emptyList(),
     val selectedDevice: BluetoothDeviceItem? = null,
-    val mode: TestMode = TestMode.SppClientSend,
+    val config: SppTestConfig = SppTestConfig(),
     val isRunning: Boolean = false,
     val isConnected: Boolean = false,
     val status: String = "Idle",
-    val stats: ThroughputStats = ThroughputStats(),
+    val stats: SppThroughputStats = SppThroughputStats(),
+    val bidirectionalStats: SppBidirectionalThroughputStats = SppBidirectionalThroughputStats(),
     val logs: List<String> = emptyList(),
-)
+) {
+    val needsSelectedDevice: Boolean
+        get() = config.role == TestRole.Client
+}

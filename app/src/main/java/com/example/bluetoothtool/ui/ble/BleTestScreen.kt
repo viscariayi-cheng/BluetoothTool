@@ -29,11 +29,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.bluetoothtool.model.TestMode
-import com.example.bluetoothtool.model.ThroughputStats
+import com.example.bluetoothtool.model.BleThroughputStats
+import com.example.bluetoothtool.model.BleBidirectionalThroughputStats
+import com.example.bluetoothtool.model.TestRole
+import com.example.bluetoothtool.model.TrafficDirection
 import com.example.bluetoothtool.ui.common.AppCard
 import com.example.bluetoothtool.ui.common.LogsCard
-import com.example.bluetoothtool.ui.common.StatsCard
 import com.example.bluetoothtool.ui.common.StatusLine
 import com.example.bluetoothtool.ui.theme.BluetoothToolTheme
 
@@ -56,7 +57,8 @@ fun BleTestScreen(
     onOpenBluetoothSettings: () -> Unit,
     onScanDevices: () -> Unit,
     onStopScan: () -> Unit,
-    onModeChange: (TestMode) -> Unit,
+    onRoleChange: (TestRole) -> Unit,
+    onTrafficDirectionChange: (TrafficDirection) -> Unit,
     onDeviceSelected: (BleDeviceItem) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
@@ -77,12 +79,17 @@ fun BleTestScreen(
                 onRequestLocationPermission = onRequestLocationPermission,
                 onOpenBluetoothSettings = onOpenBluetoothSettings,
             )
-            ModeCard(
-                selectedMode = state.mode,
+            RoleCard(
+                selectedRole = state.config.role,
                 enabled = !state.isRunning,
-                onModeChange = onModeChange,
+                onRoleChange = onRoleChange,
             )
-            if (state.mode == TestMode.BleClientSend) {
+            TrafficCard(
+                selectedTrafficDirection = state.config.trafficDirection,
+                enabled = !state.isRunning,
+                onTrafficDirectionChange = onTrafficDirectionChange,
+            )
+            if (state.needsSelectedDevice) {
                 ScanDeviceCard(
                     devices = state.scannedDevices,
                     selectedDevice = state.selectedDevice,
@@ -101,12 +108,19 @@ fun BleTestScreen(
             if (state.isConnected && state.mtu > 0) {
                 MtuCard(mtu = state.mtu)
             }
-            StatsCard(stats = state.stats)
+            if (state.config.trafficDirection == TrafficDirection.TxRx) {
+                BidirectionalStatsCard(stats = state.bidirectionalStats)
+            } else {
+                BleStatsCard(
+                    title = throughputTitle(state.config.trafficDirection),
+                    stats = state.stats,
+                )
+            }
             // 理论上限提示
             if (state.isConnected) {
                 AppCard(title = "Theoretical Max") {
-                    StatusLine("LE 1M PHY", "~0.8 Mbps (MTU 512)")
-                    StatusLine("LE 2M PHY", "~1.6 Mbps (MTU 512)")
+                    StatusLine("LE 1M PHY", "~0.8 Mbps (MTU 517)")
+                    StatusLine("LE 2M PHY", "~1.6 Mbps (MTU 517)")
                 }
             }
             LogsCard(logs = state.logs)
@@ -126,7 +140,7 @@ private fun HeaderSection() {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Client scans, connects and sends payloads continuously. Server advertises a GATT service and measures received bytes.",
+            text = "Measure BLE GATT throughput with independent connection role and traffic direction.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -149,7 +163,7 @@ private fun StatusCard(
         StatusLine("Bluetooth power", if (state.bluetoothEnabled) "Enabled" else "Disabled")
         StatusLine("BT Permission", if (state.hasBluetoothPermission) "Granted" else "Required")
         StatusLine("Location Permission", if (state.hasLocationPermission) "Granted" else "Required (BLE scan)")
-        if (state.mode == TestMode.BleServerReceive && state.isRunning) {
+        if (state.config.role == TestRole.Server && state.isRunning) {
             StatusLine("Advertising", if (state.isAdvertising) "Active" else "Starting...")
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -171,26 +185,59 @@ private fun StatusCard(
 // 测试模式切换
 // ====================================================================
 @Composable
-private fun ModeCard(
-    selectedMode: TestMode,
+private fun RoleCard(
+    selectedRole: TestRole,
     enabled: Boolean,
-    onModeChange: (TestMode) -> Unit,
+    onRoleChange: (TestRole) -> Unit,
 ) {
-    AppCard(title = "Mode") {
+    AppCard(title = "Connection") {
         ModeRow(
-            title = "Client Send",
-            description = "Scan BLE peripherals, connect, and write payload continuously (Write Without Response).",
-            selected = selectedMode == TestMode.BleClientSend,
+            title = "Client",
+            description = "Android connects to the selected BLE GATT server.",
+            selected = selectedRole == TestRole.Client,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.BleClientSend) },
+            onClick = { onRoleChange(TestRole.Client) },
         )
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         ModeRow(
-            title = "Server Receive",
-            description = "Advertise as a BLE peripheral, accept a GATT connection, and measure incoming writes.",
-            selected = selectedMode == TestMode.BleServerReceive,
+            title = "Server",
+            description = "Android advertises a GATT service for a peer client to discover.",
+            selected = selectedRole == TestRole.Server,
             enabled = enabled,
-            onClick = { onModeChange(TestMode.BleServerReceive) },
+            onClick = { onRoleChange(TestRole.Server) },
+        )
+    }
+}
+
+@Composable
+private fun TrafficCard(
+    selectedTrafficDirection: TrafficDirection,
+    enabled: Boolean,
+    onTrafficDirectionChange: (TrafficDirection) -> Unit,
+) {
+    AppCard(title = "Traffic Direction") {
+        ModeRow(
+            title = "TX",
+            description = "Android sends payload. Client writes peer RX; server notifies from local TX.",
+            selected = selectedTrafficDirection == TrafficDirection.Tx,
+            enabled = enabled,
+            onClick = { onTrafficDirectionChange(TrafficDirection.Tx) },
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        ModeRow(
+            title = "RX",
+            description = "Android receives payload. Client subscribes peer TX; server measures local RX writes.",
+            selected = selectedTrafficDirection == TrafficDirection.Rx,
+            enabled = enabled,
+            onClick = { onTrafficDirectionChange(TrafficDirection.Rx) },
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        ModeRow(
+            title = "TX + RX",
+            description = "Android sends and receives payload simultaneously.",
+            selected = selectedTrafficDirection == TrafficDirection.TxRx,
+            enabled = enabled,
+            onClick = { onTrafficDirectionChange(TrafficDirection.TxRx) },
         )
     }
 }
@@ -304,6 +351,15 @@ private fun BleDeviceRow(
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 RssiBadge(rssi = device.rssi)
+                if (device.hasTargetService) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "BluetoothTool",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         }
     }
@@ -338,7 +394,7 @@ private fun ControlCard(
             && state.hasLocationPermission
             && state.bluetoothAvailable
             && state.bluetoothEnabled
-            && (state.mode == TestMode.BleServerReceive || state.selectedDevice != null)
+            && (!state.needsSelectedDevice || state.selectedDevice != null)
 
     AppCard(title = "Control") {
         StatusLine("Connection", if (state.isConnected) "Connected" else "Disconnected")
@@ -349,6 +405,48 @@ private fun ControlCard(
             Button(onClick = onStart, enabled = canStart) { Text("Start") }
             OutlinedButton(onClick = onStop, enabled = state.isRunning) { Text("Stop") }
         }
+    }
+}
+
+@Composable
+private fun BleStatsCard(
+    title: String,
+    stats: BleThroughputStats,
+) {
+    AppCard(title = title) {
+        Text(
+            text = "%.3f Mbps".format(stats.currentMbps),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        StatusLine("Current", "%.3f Mbps".format(stats.currentMbps))
+        StatusLine("Average", "%.3f Mbps".format(stats.averageMbps))
+        StatusLine("Total Bytes", stats.totalBytes.toString())
+        StatusLine("Window Bytes", stats.intervalBytes.toString())
+        StatusLine("Elapsed", "%.1f s".format(stats.elapsedMillis / 1_000.0))
+    }
+}
+
+@Composable
+private fun BidirectionalStatsCard(stats: BleBidirectionalThroughputStats) {
+    AppCard(title = "Throughput") {
+        Text(
+            text = "%.3f Mbps".format(stats.currentTotalMbps),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        StatusLine("Current TX", "%.3f Mbps".format(stats.currentTxMbps))
+        StatusLine("Current RX", "%.3f Mbps".format(stats.currentRxMbps))
+        StatusLine("Current Total", "%.3f Mbps".format(stats.currentTotalMbps))
+        StatusLine("Average TX", "%.3f Mbps".format(stats.averageTxMbps))
+        StatusLine("Average RX", "%.3f Mbps".format(stats.averageRxMbps))
+        StatusLine("Average Total", "%.3f Mbps".format(stats.averageTotalMbps))
+        StatusLine("TX Bytes", stats.txBytes.toString())
+        StatusLine("RX Bytes", stats.rxBytes.toString())
+        StatusLine("Total Bytes", stats.totalBytes.toString())
+        StatusLine("Elapsed", "%.1f s".format(stats.elapsedMillis / 1_000.0))
     }
 }
 
@@ -367,7 +465,11 @@ private fun MtuCard(mtu: Int) {
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = if (mtu >= 247) "MTU >= 247 can significantly improve throughput." else "Requesting MTU 512 is recommended for best performance.",
+                text = when {
+                    mtu <= 23 -> "Default ATT MTU only allows 20-byte payloads; throughput results will be severely limited."
+                    mtu >= 247 -> "MTU >= 247 can significantly improve throughput."
+                    else -> "Requesting MTU 517 is recommended for best performance."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -395,7 +497,6 @@ private fun BleTestScreenPreviewClientIdle() {
                     BleDeviceItem("Unknown", "CC:00:11:22:33:44", rssi = -78),
                 ),
                 selectedDevice = BleDeviceItem("BLE-Sensor-01", "AA:11:22:33:44:55", rssi = -42),
-                mode = TestMode.BleClientSend,
                 logs = listOf("12:00:01  Ready"),
             ),
             onRequestPermission = {},
@@ -403,7 +504,8 @@ private fun BleTestScreenPreviewClientIdle() {
             onOpenBluetoothSettings = {},
             onScanDevices = {},
             onStopScan = {},
-            onModeChange = {},
+            onRoleChange = {},
+            onTrafficDirectionChange = {},
             onDeviceSelected = {},
             onStart = {},
             onStop = {},
@@ -423,20 +525,25 @@ private fun BleTestScreenPreviewClientRunning() {
                 hasLocationPermission = true,
                 scannedDevices = listOf(BleDeviceItem("BLE-Sensor-01", "AA:11:22:33:44:55", rssi = -42)),
                 selectedDevice = BleDeviceItem("BLE-Sensor-01", "AA:11:22:33:44:55", rssi = -42),
-                mode = TestMode.BleClientSend,
                 isRunning = true,
                 isConnected = true,
-                mtu = 512,
+                mtu = 517,
                 status = "Sending",
-                stats = ThroughputStats(bytes = 5_242_880, elapsedMillis = 8_000),
-                logs = listOf("12:00:05  Connected", "12:00:05  MTU=512", "12:00:06  Sending..."),
+                stats = BleThroughputStats(
+                    totalBytes = 5_242_880,
+                    elapsedMillis = 8_000,
+                    intervalBytes = 655_360,
+                    intervalMillis = 1_000,
+                ),
+                logs = listOf("12:00:05  Connected", "12:00:05  MTU=517", "12:00:06  Sending..."),
             ),
             onRequestPermission = {},
             onRequestLocationPermission = {},
             onOpenBluetoothSettings = {},
             onScanDevices = {},
             onStopScan = {},
-            onModeChange = {},
+            onRoleChange = {},
+            onTrafficDirectionChange = {},
             onDeviceSelected = {},
             onStart = {},
             onStop = {},
@@ -454,13 +561,18 @@ private fun BleTestScreenPreviewServerRunning() {
                 bluetoothEnabled = true,
                 hasBluetoothPermission = true,
                 hasLocationPermission = true,
-                mode = TestMode.BleServerReceive,
+                config = com.example.bluetoothtool.model.BleTestConfig(role = TestRole.Server, trafficDirection = TrafficDirection.Rx),
                 isRunning = true,
                 isConnected = true,
                 isAdvertising = true,
-                mtu = 512,
+                mtu = 517,
                 status = "Receiving",
-                stats = ThroughputStats(bytes = 3_145_728, elapsedMillis = 5_000),
+                stats = BleThroughputStats(
+                    totalBytes = 3_145_728,
+                    elapsedMillis = 5_000,
+                    intervalBytes = 629_145,
+                    intervalMillis = 1_000,
+                ),
                 logs = listOf("12:00:03  Advertising", "12:00:06  Connected", "12:00:07  Pushing..."),
             ),
             onRequestPermission = {},
@@ -468,10 +580,18 @@ private fun BleTestScreenPreviewServerRunning() {
             onOpenBluetoothSettings = {},
             onScanDevices = {},
             onStopScan = {},
-            onModeChange = {},
+            onRoleChange = {},
+            onTrafficDirectionChange = {},
             onDeviceSelected = {},
             onStart = {},
             onStop = {},
         )
+    }
+}
+private fun throughputTitle(trafficDirection: TrafficDirection): String {
+    return when (trafficDirection) {
+        TrafficDirection.Tx -> "TX Throughput"
+        TrafficDirection.Rx -> "RX Throughput"
+        TrafficDirection.TxRx -> "Throughput"
     }
 }
